@@ -1,6 +1,9 @@
-#GERMINATION DATA
-#VIVIAN BERNAU
-#29 September 2017
+#' ---
+#' title: "Germination Analysis: univariate"
+#' author: "Vivian Bernau"
+#' date: "29 September 2017"
+#' output: word_document
+#' ---
 
 #UNIVARIATE ANALYSIS
 #total viable
@@ -34,6 +37,7 @@ rm(germ, viable)
 
 #calculate percent germ and percent viable
 summary$perc_germ <- summary$germ/summary$viable
+summary$perc_notgerm <- 1-summary$perc_germ
 summary$perc_viable <- summary$viable/10
 
 #calculate delay to first germ (first data point per plate)
@@ -59,31 +63,34 @@ min(plates[[1]]$end[plates[[1]]$cumsum >= summary$germ50[1]])
 
 n <- nrow(summary)
 out50 <- vector("list", n)
-for(i in seq_along(plates)){
+suppressWarnings(
+  for(i in seq_along(plates)){
   x<- min(plates[[i]]$end[
     plates[[i]]$cumsum >= summary$germ50[[i]]])
   out50[[i]] <- x
-}
+})
 summary$t50 <- t(as.data.frame(out50))
   
 #calculate germation uniformity
 summary$germ25 <- .25*summary$viable
 
 out25 <- vector("list", n)
-for(i in seq_along(plates)){
+suppressWarnings(
+  for(i in seq_along(plates)){
   x<- min(plates[[i]]$end[
     plates[[i]]$cumsum >= summary$germ25[[i]]])
   out25[[i]] <- x
-}
+})
 summary$t25 <- t(as.data.frame(out25))
 
 summary$germ75 <- .75*summary$viable
 out75 <- vector("list", n)
-for(i in seq_along(plates)){
+suppressWarnings(
+  for(i in seq_along(plates)){
   x<- min(plates[[i]]$end[
     plates[[i]]$cumsum >= summary$germ75[[i]]])
   out75[[i]] <- x
-}
+})
 summary$t75 <- t(as.data.frame(out75))
 
 #calculuate germ rate and uniformity
@@ -102,75 +109,27 @@ is.na(sum) <- sapply(sum, is.infinite)
 sum <- sum[!(is.na(sum$landrace.name)) | !(is.na(sum$region)) | !(is.na(sum$cultivation)),]
 
 sum0 <- subset(sum, sum$perc_germ!=0)
-
-#write.csv(summary, file = paste(data.dir, "/summarydata_2018-01-23.csv", sep = ""))
+remove <- c("X.1", "X.2", "X", "viable.y", "number", "status")
+sum1 <- sum0[ , !(names(sum0) %in% remove)]
+write.csv(sum1, file = paste(data.dir, "/summarydata_2018-01-23.csv", sep = ""))
 
 #distribution plots
-plots <- subset(sum[,c("perc_germ", "delay", "uniform", "rategerm")])
+plots <- subset(sum[,c("trt", "perc_notgerm", "delay", "uniform", "rategerm")])
 str(plots)
 plots$rategerm <- as.vector((plots$rategerm))
 plots$uniform <- as.vector((plots$uniform))
 str(plots)
 plots <- na.omit(plots)
 
-library(ggplot2)
-library(reshape2)
-ggplot(melt(plots),aes(x=value)) + geom_histogram() + facet_wrap(~variable, scales = "free_x") + stat_function(fun=dnorm)
+suppressMessages(
+library(ggplot2,reshape2))
+x <- melt(plots, id = "trt")
+ggplot(x, aes(x=value)) + geom_histogram() + facet_wrap(~variable, scales = "free_x")
+ggplot(x, aes(x=variable, y = value)) + geom_boxplot(aes(fill=trt)) + facet_wrap( ~ variable, scales="free")
 
-plot.new()
-par(mfrow=c(2,2))
-X = na.omit(plots$delay)
-h<-hist(X, breaks=20, col="GREY", xlab="delay", 
-        main="Histogram of observations")
-xfit<-seq(min(X),max(X),length=40)
-yfit<-dnorm(xfit,mean=mean(X),sd=sd(X))
-yfit <- yfit*diff(h$mids[1:2])*length(X)
-lines(xfit, yfit, col="4", lwd=2)
-
-X = na.omit(plots$uniform)
-h<-hist(X, breaks=20, col="GREY", xlab="uniformity", 
-        main="Histogram of observations")
-xfit<-seq(min(X),max(X),length=40)
-yfit<-dnorm(xfit,mean=mean(X),sd=sd(X))
-yfit <- yfit*diff(h$mids[1:2])*length(X)
-lines(xfit, yfit, col="4", lwd=2)
-
-X = na.omit(plots$rategerm)
-h<-hist(X, breaks=20, col="GREY", xlab="rate of germination", 
-        main="Histogram of observations")
-xfit<-seq(min(X),max(X),length=40)
-yfit<-dnorm(xfit,mean=mean(X),sd=sd(X))
-yfit <- yfit*diff(h$mids[1:2])*length(X)
-lines(xfit, yfit, col="4", lwd=2)
-
-X = na.omit(plots$perc_germ)
-h<-hist(X, breaks=20, col="GREY", xlab="rate of germination", 
-        main="Histogram of observations")
-xfit<-seq(min(X),max(X),length=40)
-yfit<-dnorm(xfit,mean=mean(X),sd=sd(X))
-yfit <- yfit*diff(h$mids[1:2])*length(X)
-lines(xfit, yfit, col="4", lwd=2)
-
-
-#test for homogeneity of data (p>0.05 == data is homogenous)
-bartlett.test(sum$delay~sum$trt)
-plot(sum$trt, sum$delay, ylab = "delay")
-
-bartlett.test(sum$uniform~sum$trt)
-plot(sum$trt, sum$uniform, ylab = "uniform")
-
-bartlett.test(sum$rategerm~sum$trt)
-plot(sum$trt, sum$rategerm, ylab = "rategerm")
-
-bartlett.test(sum$perc_germ~sum$trt)
-plot(sum$trt, sum$perc_germ, ylab = "percnotgerm")
-
-library(lme4)
-library(lmerTest)
-library(multcomp)
-library(afex)
-library(lattice)
-library(pbkrtest)
+suppressMessages(
+library(lme4,lmerTest,multcomp,afex,lattice,pbkrtest)
+)
 
 options(lmerControl=list(check.nobs.vs.rankZ = "warning",
                          check.nobs.vs.nlev = "warning",
@@ -186,7 +145,7 @@ options(lmerControl=list(check.nobs.vs.rankZ = "warning",
 #####
 #DELAY
 #####
-delay.a1 <- lmer(delay ~  trt + (1|region) + (trt|region) + (1|region:landrace.name) + (1|cultivation) + (0+trt|region:landrace.name)
+delay.a1 <- lmer(delay ~  trt + (1|region) + (trt|region) + (1|region:landrace.name) + (0+trt|region:landrace.name)
                 + (1|rep) + (1|rep:run), data = sum, REML = T)
 summary(delay.a1)
 anova(delay.a1) #trt significant at p = 0.0047
@@ -221,7 +180,7 @@ dotplot(ranef)
 which(residuals(delay.a2) > 200)
 
 
-delay.b1 <- lmer(delay ~ trt + (1|cultivation) + (trt|cultivation) + (1|cultivation:landrace.name) +(1|region)+ (0+trt|cultivation:landrace.name)
+delay.b1 <- lmer(delay ~ trt + (1|cultivation) + (trt|cultivation) + (1|cultivation:landrace.name) + (0+trt|cultivation:landrace.name)
                 + (1|rep) + (1|rep:run), data = sum, REML = T, na.action = na.omit)
 summary(delay.b1)
 anova(delay.b1) #trt not significant
@@ -302,7 +261,7 @@ dotplot(ranef)
 #sum[c("2768","3537","8270","8330","8760","8900","8989","9068","9828"),]
 
 
-rategerm.b1 <- lmer(t50 ~ trt + (1|cultivation) + (trt|cultivation) + (1|cultivation:landrace.name) + (1|region) + 
+rategerm.b1 <- lmer(t50 ~ trt + (1|cultivation) + (trt|cultivation) + (1|cultivation:landrace.name) + 
                      (0+trt|cultivation:landrace.name)
                    + (1|rep) + (1|rep:run), data = sum, REML = T, na.action = na.omit)
 summary(rategerm.b1)
@@ -342,7 +301,7 @@ dotplot(ranef)
 #UNIFORMITY
 #####
 summary(sum$uniform)
-uniform.a1 <- lmer(uniform ~ trt + (1|region) + (trt|region) + (1|region:landrace.name) +(1|cultivation) + (trt|region:landrace.name)
+uniform.a1 <- lmer(uniform ~ trt + (1|region) + (trt|region) + (1|region:landrace.name) + (trt|region:landrace.name)
                   + (1|rep) + (1|rep:run), data = sum, REML = T)
 summary(uniform.a1)
 anova(uniform.a1) #error in calculation
@@ -377,7 +336,7 @@ dotplot(ranef)
 which(residuals(uniform.a2) > 200)
 
 
-uniform.b1 <- lmer(uniform ~ trt + (1|cultivation) + (trt|cultivation) + (1|cultivation:landrace.name) + (1|region) + (0+trt|cultivation:landrace.name)
+uniform.b1 <- lmer(uniform ~ trt + (1|cultivation) + (trt|cultivation) + (1|cultivation:landrace.name) + (0+trt|cultivation:landrace.name)
                   + (1|rep) + (1|rep:run), data = sum, REML = T)
 summary(uniform.b1)
 anova(uniform.b1) #error in calculation
@@ -415,11 +374,13 @@ which(residuals(uniform.b2) > 300)
 #TOTAL PRECENT GERM
 #####
 
+sum$perc_notgerm <- 1-sum$perc_germ
+
 #percgerm is a percent value, so the data is left skewed. We account for this by using glmer with a guassian or logistic linking function.
-perc_germ.a1 <- glmer(perc_germ ~ trt + (1|region) + (trt|region) + (1|cultivation) + (1|region:landrace.name)  + (0+trt|region:landrace.name)
-                     + (1|rep) + (1|rep:run), data = sum, family = gaussian(link = "identity"), REML = T)
+perc_germ.a1 <-lmer(asin(sqrt(sum$perc_notgerm)) ~ trt + (1|region) + (trt|region) + (1|region:landrace.name) + (0+trt|region:landrace.name)
+                     + (1|rep) + (1|rep:run), data = sum, REML = T)
 summary(perc_germ.a1)
-anova(perc_germ.a1) #trt not significant
+anova(perc_germ.a1) #trt significant
 rand(perc_germ.a1) #region significant at p= 0.1, trt:region:landrace significant at p < 0.0001, run within rep significant at p < 0.0001
 
 plot(residuals(perc_germ.a1))
@@ -432,8 +393,8 @@ ranef
 dotplot(ranef)
 which(residuals(perc_germ.a1) < -.6)
 
-perc_germ.a2 <- glmer(perc_germ ~ trt + (1|region) + (trt|region) + (1|cultivation) + (1|region:landrace.name)  + (0+trt|region:landrace.name)
-                     + (1|rep) + (1|rep:run), data = sum, family = gaussian(link = "identity"), REML = T)
+perc_germ.a2 <- lmer(asin(sqrt(sum$perc_notgerm)) ~ trt + (1|region) + (trt|region) + (1|cultivation) + (1|region:landrace.name)  + (0+trt|region:landrace.name)
+                     + (1|rep) + (1|rep:run), data = sum, REML = T)
 summary(perc_germ.a2)
 anova(perc_germ.a2) #trt not significant
 rand(perc_germ.a2) #region significant at p= 0.1, trt:region:landrace significant at p < 0.0001, run within rep significant at p < 0.0001
@@ -448,8 +409,8 @@ ranef
 dotplot(ranef)
 which(residuals(perc_germ.a2) < -.6)
 
-perc_germ.b1 <- glmer(perc_germ ~ trt + (1|cultivation) + (1|region) + (trt|cultivation) + (1|cultivation:landrace.name) + (0+trt|cultivation:landrace.name)
-                     + (1|rep) + (1|rep:run), data = sum, family = gaussian(link = "identity"), REML = T)
+perc_germ.b1 <- lmer(asin(sqrt(sum$perc_notgerm)) ~ trt + (1|cultivation) + (trt|cultivation) + (1|cultivation:landrace.name) + (0+trt|cultivation:landrace.name)
+                     + (1|rep) + (1|rep:run), data = sum, REML = T)
 summary(perc_germ.b1)
 anova(perc_germ.b1) #trt not significant
 rand(perc_germ.b1) #trt:cultivation significant at p= 0.03, trt:cultivation:landrace singificant at p<0.0001, run within rep significant at p<0.0001
@@ -464,8 +425,8 @@ ranef
 dotplot(ranef)
 which(residuals(perc_germ.b1) < -.6)
 
-perc_germ.b2 <- glmer(perc_germ ~ trt + (1|cultivation) + (1|region) + (trt|cultivation) + (1|cultivation:landrace.name) + (0+trt|cultivation:landrace.name)
-                     + (1|rep) + (1|rep:run), data = sum, family = gaussian(link = "identity"), REML = T)
+perc_germ.b2 <- lmer(asin(sqrt(sum$perc_notgerm)) ~ trt + (1|cultivation) + (1|region) + (trt|cultivation) + (1|cultivation:landrace.name) + (0+trt|cultivation:landrace.name)
+                     + (1|rep) + (1|rep:run), data = sum, REML = T)
 summary(perc_germ.b2)
 anova(perc_germ.b2) #trt not significant
 rand(perc_germ.b2) #trt:cultivation significant at p= 0.03, trt:cultivation:landrace singificant at p<0.0001, run within rep significant at p<0.0001
